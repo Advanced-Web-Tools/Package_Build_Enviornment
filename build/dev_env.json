@@ -1,0 +1,8 @@
+{
+  "release_folder": "releases",
+  "build_save_format": "<name>-<author>-<version>",
+  "address": "http://localhost:3000",
+  "remote_install_path": "/dev/install",
+  "devSecret": "12345678",
+  "build_mode": "dev_fast-"
+}
