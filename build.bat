@@ -1,1 +1,2 @@
-php.exe -f  "./build/runtime/run.php"
+@echo off
+php.exe -f "./build/runtime/run.php" -- %*

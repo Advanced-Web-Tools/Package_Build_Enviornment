@@ -1,1 +1,2 @@
-php -f  "./build/runtime/run.php"
+#!/bin/bash
+php -f "./build/runtime/run.php" -- "$@"

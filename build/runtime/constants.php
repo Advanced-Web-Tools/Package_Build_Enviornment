@@ -1,12 +1,12 @@
 <?php
 
-define('NAME', '');
-define('MANIFEST', NAME . '/manifest.json');
+const NAME = '';
+const MANIFEST = NAME . '/manifest.json';
 
-define('COLOR_RESET', "\033[0m");
-define('COLOR_RED', "\033[31m");
-define('COLOR_GREEN', "\033[32m");
-define('COLOR_YELLOW', "\033[33m");
+const COLOR_RESET = "\033[0m";
+const COLOR_RED = "\033[31m";
+const COLOR_GREEN = "\033[32m";
+const COLOR_YELLOW = "\033[33m";
 
 function color(string $text, string $color): string {
     return $color . $text . COLOR_RESET;
