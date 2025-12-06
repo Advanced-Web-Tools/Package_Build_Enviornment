@@ -13,5 +13,11 @@ function loadEnvConfig(): array {
         exit(color("Error: Invalid JSON in dev_env.json.\n", COLOR_RED));
     }
 
+    $options = getopt('', ['install', 'fast']);
+    $install = isset($options['install']);
+    $fast = isset($options['fast']);
+    $devEnv['build_mode'] = $fast ? "dev_fast" : "dev";
+    $devEnv['install'] = $install;
+
     return $devEnv;
 }
