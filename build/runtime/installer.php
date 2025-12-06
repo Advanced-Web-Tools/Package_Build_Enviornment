@@ -1,5 +1,23 @@
 <?php
 
+function isServerAlive(string $url): bool
+{
+    $curl = curl_init();
+    curl_setopt_array($curl, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_NOBODY => true,
+        CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_POST => true,
+        CURLOPT_TIMEOUT => 3,
+    ]);
+
+    curl_exec($curl);
+    $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    curl_close($curl);
+    return $httpCode >= 200 && $httpCode <= 404;
+}
+
 function installPackage($zipFile, $devEnv): void
 {
 
@@ -21,6 +39,12 @@ function installPackage($zipFile, $devEnv): void
     }
 
     if ($devEnv["install"] || strtolower($response) === 'y') {
+        echo color("Checking server status at {$devEnv['address']}{$devEnv['remote_install_path']}...", COLOR_YELLOW) . "\n";
+        if (!isServerAlive($devEnv['address'] . $devEnv['remote_install_path'])) {
+            exit(color("Error: Server is not responding. Please check the address and remote install path in 'build/dev_env.json' and ensure your server is running.\n", COLOR_RED));
+        }
+        echo color("Server is online.\n", COLOR_GREEN);
+
         if (!file_exists($zipFile)) {
             exit(color("Error: ZIP file not found.\n", COLOR_RED));
         }
@@ -60,4 +84,3 @@ function installPackage($zipFile, $devEnv): void
         echo color("Installation skipped.\n", COLOR_YELLOW);
     }
 }
-
