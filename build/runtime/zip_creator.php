@@ -2,6 +2,10 @@
 function loadDevEnvConfig() {
     $devEnvFile = 'build/dev_env.json';
 
+    $options = getopt('', ['install', 'fast']);
+    $install = isset($options['install']);
+    $fast = isset($options['fast']);
+
     if (!file_exists($devEnvFile)) {
         exit(color("Error: dev_env.json not found.\n", COLOR_RED));
     }
@@ -12,6 +16,9 @@ function loadDevEnvConfig() {
     if (!$devEnv) {
         exit(color("Error: Invalid JSON in dev_env.json.\n", COLOR_RED));
     }
+
+    $devEnv['build_mode'] = $fast ? "dev_fast" : "dev";
+    $devEnv['install'] = $install;
 
     return $devEnv;
 }
