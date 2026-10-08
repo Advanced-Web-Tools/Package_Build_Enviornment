@@ -7,14 +7,14 @@ function loadDevEnvConfig() {
     $fast = isset($options['fast']);
 
     if (!file_exists($devEnvFile)) {
-        exit(color("Error: dev_env.json not found.\n", COLOR_RED));
+        throw new RuntimeException("Error: dev_env.json not found.\n");
     }
 
     $devEnvContent = file_get_contents($devEnvFile);
     $devEnv = json_decode($devEnvContent, true);
 
     if (!$devEnv) {
-        exit(color("Error: Invalid JSON in dev_env.json.\n", COLOR_RED));
+        throw new RuntimeException("Error: Invalid JSON in dev_env.json.\n");
     }
 
     $devEnv['build_mode'] = $fast ? "dev_fast" : "dev";
@@ -75,12 +75,14 @@ function createZip($manifest, $version): string {
 
     $zipFilePath = $releaseFolder . DIRECTORY_SEPARATOR . $zipFileName . '.zip';
 
+    if (!extension_loaded('zip')) throw new RuntimeException('PHP ZIP extension is required.');
+    if ($zipFileName === '' || strpbrk($zipFileName, '/\\') !== false || str_contains($zipFileName, '..')) throw new RuntimeException('Invalid build filename.');
     $zip = new ZipArchive();
 
-    $rootPath = realpath("./$name");
+    $rootPath = realpath(NAME);
 
     if ($rootPath === false) {
-        exit(color("Error: Invalid path for '$name'. Make sure the plugin folder exists.\n", COLOR_RED));
+        throw new RuntimeException("Error: Invalid path for '$name'. Make sure the plugin folder exists.\n");
     }
 
     if ($zip->open($zipFilePath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
@@ -92,6 +94,7 @@ function createZip($manifest, $version): string {
         $filesZipped = [];
 
         foreach ($files as $file) {
+            if ($file->isLink()) throw new RuntimeException('Symbolic links are not supported in package archives.');
             $filePath = $file->getRealPath();
             $relativePath = substr($filePath, strlen($rootPath) + 1);
             $normalizedRelativePath = str_replace('\\', '/', $relativePath);
@@ -107,7 +110,7 @@ function createZip($manifest, $version): string {
                         continue;
                     }
 
-                    if(str_ends_with($filePath, DIRECTORY_SEPARATOR . "data" . DIRECTORY_SEPARATOR . "icon" . DIRECTORY_SEPARATOR . $manifest['icon']))
+                    if(str_starts_with($normalizedRelativePath, 'data/'))
                     {
                         $zip->addFile($filePath, $normalizedRelativePath);
                         $filesZipped[] = $filePath;
@@ -127,17 +130,18 @@ function createZip($manifest, $version): string {
         }
 
         if (($devEnv["build_mode"] ?? "") === "dev_fast") {
-            saveFileCache($cache);
+            // Cache is saved only after the archive has been finalized.
         }
 
         foreach ($filesZipped as $file) {
             echo color("Added file: $file\n", COLOR_GREEN);
         }
 
-        $zip->close();
+        if (!$zip->close()) throw new RuntimeException('Failed to finalize ZIP archive.');
+        if (($devEnv['build_mode'] ?? '') === 'dev_fast') saveFileCache($cache);
         echo color("Folder zipped successfully as '$zipFilePath'.\n", COLOR_GREEN);
     } else {
-        exit(color("Failed to create zip file.\n", COLOR_RED));
+        throw new RuntimeException("Failed to create zip file.\n");
     }
 
     return $zipFilePath;

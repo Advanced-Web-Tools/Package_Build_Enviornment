@@ -1,86 +1,54 @@
 <?php
-
-function isServerAlive(string $url): bool
+function installPackage(string $zipFile, array $devEnv): void
 {
-    $curl = curl_init();
-    curl_setopt_array($curl, [
-        CURLOPT_URL => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_NOBODY => true,
-        CURLOPT_CONNECTTIMEOUT => 3,
-        CURLOPT_POST => true,
-        CURLOPT_TIMEOUT => 3,
-    ]);
-
-    curl_exec($curl);
-    $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-    curl_close($curl);
-    return $httpCode >= 200 && $httpCode <= 404;
-}
-
-function installPackage($zipFile, $devEnv): void
-{
-
-    $response = '';
-
-    if(!$devEnv['install']) {
-        echo color("To proceed, please follow these steps:\n", COLOR_YELLOW);
-        echo color("1. In 'awt_config.php', set 'REMOTE_INSTALL_FOR_DEVS' to 'true'.\n", COLOR_YELLOW);
-        echo color("2. In the same file ('awt_config.php'), set 'DEBUG' to 'true'.\n\n", COLOR_YELLOW);
-
-        echo color("SECURITY WARNING:\n", COLOR_RED);
-        echo color("- The 'REMOTE_INSTALL_FOR_DEVS' setting enables remote installation and MUST NEVER be 'true' in a production environment.\n", COLOR_RED);
-        echo color("- Ensure 'dev_secret' in 'awt_config.php' matches the one in 'build/dev_env.json'.\n\n", COLOR_RED);
-
-        echo color("Would you like to install this package now? (y/N): ", COLOR_GREEN);
-
-        $handle = fopen("php://stdin", "r");
-        $response = trim(fgets($handle));
+    if ($devEnv['no_install'] ?? false) {
+        echo color("Installation skipped.\n", COLOR_YELLOW);
+        return;
     }
-
-    if ($devEnv["install"] || strtolower($response) === 'y') {
-        echo color("Checking server status at {$devEnv['address']}{$devEnv['remote_install_path']}...", COLOR_YELLOW) . "\n";
-        if (!isServerAlive($devEnv['address'] . $devEnv['remote_install_path'])) {
-            exit(color("Error: Server is not responding. Please check the address and remote install path in 'build/dev_env.json' and ensure your server is running.\n", COLOR_RED));
+    if (!$devEnv['install']) {
+        echo color("Install package now? (y/N): ", COLOR_GREEN);
+        $answer = fgets(STDIN);
+        if ($answer === false || strtolower(trim($answer)) !== 'y') {
+            echo color("Installation skipped.\n", COLOR_YELLOW);
+            return;
         }
-        echo color("Server is online.\n", COLOR_GREEN);
-
-        if (!file_exists($zipFile)) {
-            exit(color("Error: ZIP file not found.\n", COLOR_RED));
+    }
+    if (!extension_loaded('curl')) throw new RuntimeException('PHP cURL extension is required for deployment.');
+    foreach (['address', 'remote_install_path', 'devSecret'] as $key) {
+        if (!isset($devEnv[$key]) || !is_string($devEnv[$key]) || $devEnv[$key] === '') {
+            throw new InvalidArgumentException('Missing deployment setting: ' . $key);
         }
-
-        echo color("Sending package to installer...\n", COLOR_YELLOW);
-
-        $curl = curl_init();
-
-        $cfile = new CURLFile($zipFile, 'application/zip', basename($zipFile));
-        $postFields = [
-            'package' => $cfile,
-            'devSecret' => $devEnv['devSecret']
-        ];
-
-        $url = $devEnv['address'] . $devEnv['remote_install_path'];
+    }
+    if (!is_file($zipFile)) throw new RuntimeException('ZIP file not found.');
+    $url = rtrim($devEnv['address'], '/') . '/' . ltrim($devEnv['remote_install_path'], '/');
+    if (!in_array(parse_url($url, PHP_URL_SCHEME), ['http', 'https'], true)) {
+        throw new InvalidArgumentException('Deployment address must use HTTP or HTTPS.');
+    }
+    $curl = curl_init($url);
+    if ($curl === false) throw new RuntimeException('Cannot initialize cURL.');
+    try {
         curl_setopt_array($curl, [
-            CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => $postFields,
-            CURLOPT_HTTPHEADER => [
-                'Content-Type: multipart/form-data'
-            ]
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 300,
+            CURLOPT_POSTFIELDS => [
+                'package' => new CURLFile(realpath($zipFile), 'application/zip', basename($zipFile)),
+                'devSecret' => $devEnv['devSecret'],
+                'action' => $devEnv['action'] ?? 'install',
+            ],
         ]);
-
-        $serverResponse = curl_exec($curl);
-
-        if (curl_errno($curl)) {
-            echo color("cURL error: " . curl_error($curl) . "\n", COLOR_RED);
-        } else {
-            echo color("Package installed successfully.\n", COLOR_GREEN);
-            echo "$serverResponse\n";
+        $response = curl_exec($curl);
+        if ($response === false) throw new RuntimeException('Deployment transport error: ' . curl_error($curl));
+        $status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        // AWT 27 currently returns plain text, including some failures with HTTP 200.
+        $body = trim($response);
+        if ($status < 200 || $status >= 300 || !str_starts_with($body, 'Installed on ')) {
+            throw new RuntimeException("Deployment failed (HTTP {$status}): " . $body);
         }
-
+        echo color($body . "\n", COLOR_GREEN);
+    } finally {
         curl_close($curl);
-    } else {
-        echo color("Installation skipped.\n", COLOR_YELLOW);
     }
 }
+

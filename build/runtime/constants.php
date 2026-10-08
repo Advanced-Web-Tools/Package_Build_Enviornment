@@ -11,3 +11,4 @@ define('COLOR_YELLOW', "\033[33m");
 function color(string $text, string $color): string {
     return $color . $text . COLOR_RESET;
 }
+
