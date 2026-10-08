@@ -88,3 +88,4 @@ To allow the script to install packages, you must configure your remote server:
 1. Open your server's `awt_config.php` file.
 2. Set `DEBUG` and `REMOTE_INSTALL_FOR_DEVS` to `true`.
 3. Ensure the `dev_secret` in `awt_config.php` matches the `devSecret` in your local file. `build/dev_env.json`
+
